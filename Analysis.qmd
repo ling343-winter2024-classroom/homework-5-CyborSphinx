@@ -1,0 +1,53 @@
+---
+title: "Analysis"
+format: 
+  html:
+    embed-resources: true
+---
+How many participants do you have data for total? Use inline R-code to "print" this number in the markdown text.
+How many rows of data remained after removing the trials as described in the "data analysis" section? (inline code in text - discuss what kind of data you excluded!)
+Print a table showing the mean, min, max, and standard deviation of participant ages. (as a table in the markdown, not as R output)
+Reproduce the figure in Figure 1.
+Include a table showing the same results as in Figure 1 - you can skip the standard error numbers if that is too challenging. 
+ 
+## Research Description
+Here I present you the results for this research project. For context, it is on how maze tasks can be a useful tool in investigating people's predictions of words in conjunction with comprehension.
+We predict that people will respond slower when encountering unexpected words, especially, response time should be roughly inversely correlated with cloze probabilities, which is the probability of people guessing the word right out of all the guesses.
+Sentences used in the study include "The old wives' tale says that if you want to keep the doctor away then you should eat an apple a day." and "With his khaki shorts and his loud Hawaiian shirt and the camera around his neck you could definitely tell that the man was an alien in the country."
+The result in general is in accordance with the predictions and shows maze tasks to be a viable option of studying comprehension prediction.
+
+## Data Directory
+Below is a list of meaning variable reference in the sheet of data:
+Time= time the participant has completed the task	
+Hash= encoded IP address of the participant
+Controller name= type of the current task	
+Item number= encoded number of the task	
+Type= phase of task	
+Field name=questions	
+Field value=answers to previous questions	
+Word number=index of word in the maze task	
+Word=word in the maze task	
+Alternative=the distraction alternative	
+Word on (0=left, 1=right): encoding of the position of the correct word	
+Correct= if the participant got this one correct	
+Reading time to first answer= time it took for the participant to choose	
+Sentence=the entire correct sentence	
+Total time to correct answer= total time it took to complete the entire sentence correctly	
+Question (NULL if none)= question regarding the sentences	
+Answer=answer of the participant	
+Whether or not answer was correct (NULL if N/A)=correctness of the answer
+Time taken to answer=time to produce that answer
+
+## First we load the packages
+```{r}
+#| warning: false
+library(lme4)
+library(ggplot2)
+library(lmerTest)
+library(tidyverse)
+library(emmeans)
+library(logistf)
+library(cowplot)
+```
+
+## Lets count the total number of participants
