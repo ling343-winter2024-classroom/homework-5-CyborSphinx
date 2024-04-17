@@ -1,0 +1,149 @@
+---
+title: "Analysis"
+format: 
+  html:
+    embed-resources: true
+code-fold: true
+code-summary: show code
+
+---
+ 
+## Research Description
+Here I present you the results for this research project. For context, it is on how maze tasks can be a useful tool in investigating people's predictions of words in conjunction with comprehension.
+We predict that people will respond slower when encountering unexpected words, especially, response time should be roughly inversely correlated with cloze probabilities, which is the probability of people guessing the word right out of all the guesses.
+Sentences used in the study include "The old wives' tale says that if you want to keep the doctor away then you should eat an apple a day." and "With his khaki shorts and his loud Hawaiian shirt and the camera around his neck you could definitely tell that the man was an alien in the country."
+The result in general is in accordance with the predictions and shows maze tasks to be a viable option of studying comprehension prediction.
+
+## Data Directory
+Below is a list of meaning variable reference in the sheet of data:
+Time= time the participant has completed the task	
+Hash= encoded IP address of the participant
+Controller name= type of the current task	
+Item number= encoded number of the task	
+Type= phase of task	
+Field name=questions	
+Field value=answers to previous questions	
+Word number=index of word in the maze task	
+Word=word in the maze task	
+Alternative=the distraction alternative	
+Word on (0=left, 1=right): encoding of the position of the correct word	
+Correct= if the participant got this one correct	
+Reading time to first answer= time it took for the participant to choose	
+Sentence=the entire correct sentence	
+Total time to correct answer= total time it took to complete the entire sentence correctly	
+Question (NULL if none)= question regarding the sentences	
+Answer=answer of the participant	
+Whether or not answer was correct (NULL if N/A)=correctness of the answer
+Time taken to answer=time to produce that answer
+
+## First we load the packages and data
+```{r}
+#| warning: false
+library(lme4)
+library(ggplot2)
+library(lmerTest)
+library(tidyverse)
+library(emmeans)
+library(logistf)
+library(cowplot)
+library(kableExtra)
+library(here)
+here::i_am("homework-5-CyborSphinx\\Analysis.qmd")
+data <- read.csv("delong maze 40Ss.csv",
+  header = 1, sep = ",", comment.char = "#", strip.white = T,
+  col.names = c("Index", "Time", "Counter", "Hash", "Owner", 
+                "Controller", "Item", "Element", "Type", "Group", 
+                "FieldName", "Value", "WordNum", "Word", "Alt", 
+                "WordOn", "CorrWord", "RT", "Sent", "TotalTime", 
+                "Question", "Resp", "Acc", "RespRT"))
+```
+
+## Lets count the total number of participants
+```{r}
+n_participant <- data %>% 
+  distinct(Hash) %>% 
+  nrow()
+print(paste("The number of participants is:", n_participant))
+```
+## Data Cleaning
+Some entries had to be removed for analysis purpose. Entries with item number 21 are removed for a coding error. To analyze the words that were predicted correctly, the words that were predicted incorrectly were also removed together with the ensuing correct second guesses.
+```{r}
+nu_data<-data %>% 
+  filter(CorrWord!="no") %>% #Removing incorrect responses
+  filter(Item!=29) #removing incorrectly coded responses
+nu_entry<-nu_data %>% 
+  nrow()
+print(paste("The number of rows after entry removals is:", nu_entry))
+```
+## Analysis of age
+Here we analyze the statistics of age.
+```{r}
+age <- suppressWarnings(as.numeric(as.character(nu_data$Value)))
+
+# Remove non numeric values, since except age everything in that column is textual.
+age <- na.omit(age)
+age_stats <- tibble(
+  Statistic = c("mean","min", "max", "sd"),
+  Value = c(mean(age), min(age), max(age), sd(age))
+)
+
+kbl(age_stats) %>% 
+  kable_styling()
+
+```
+
+## Figure 1
+Here, we analyze the average response time for the critical article and noun and the surrounding 6 words, grouped by whether the noun is expected or not. We predict that unexpected nouns would take longer, which is what we see here.
+```{r}
+df_rt <- data |> 
+  filter(Controller == "Maze" & !str_detect(Type, "prac")) |> 
+  select(1:10, 13:20) |> 
+  separate(col = Type, 
+           into = c("exp", "item", "expect", "position", "pos", 
+                    "cloze", "art.cloze", "n.cloze"), 
+           sep = "\\.", convert = TRUE, fill = "right") |> 
+  mutate(WordNum = as.numeric(WordNum),
+         Acc = as.numeric(as.character(recode(CorrWord, yes = "1", no = "0"))),
+         n.cloze.scale =  scale(n.cloze), 
+         art.cloze.scale = scale(art.cloze)) |> 
+  mutate(across(where(is.character), as.factor))
+rt_s <- df_rt %>%
+  mutate(
+    rgn.fix = WordNum - pos + 1,
+    word.num.z = scale(WordNum),
+    word.len = nchar(as.character(Word)),
+    Altword.len = nchar(as.character(Alt)),
+    item.expect = paste(item, expect, sep = "."),
+    
+    expect = fct_relevel(expect, "expected")
+  ) %>%
+  filter(!Hash %in% c("gyxidIf0fqXBM7nxg2K7SQ", "f8dC3CkleTBP9lUufzUOyQ"))
+
+rgn_rt_raw <- rt_s %>%
+  filter(rgn.fix > -4, rgn.fix < 5, Acc == 1) %>%
+  group_by(rgn.fix, expect) %>%
+  summarize(
+    n = n(),
+    subj = n_distinct(Hash),
+    rt = mean(RT),
+    sd = sd(RT),
+    stderr = sd / sqrt(subj)
+  ) %>%
+  mutate(
+    rgn = factor(recode(rgn.fix, "-3" = "CW-3", "-2" = "CW-2", "-1" = "CW-1", "0" = "art", "1" = "n", "2" = "CW+1", "3" = "CW+2", "4" = "CW+3"),
+                 levels = c("CW-3", "CW-2", "CW-1", "art", "n", "CW+1", "CW+2", "CW+3"))
+  )
+
+ggplot(rgn_rt_raw, aes(x = rgn, y = rt, group = expect, shape = expect)) +
+  geom_line(stat = "identity", position = position_dodge(width = .3)) +
+  geom_point(stat = "identity", position = position_dodge(width = .3), size = 3) +
+  geom_errorbar(aes(ymin = rt - stderr, ymax = rt + stderr), width = .15, position = position_dodge(width = .3)) +
+  scale_shape_manual(name = "", labels = c("Expected", "Unexpected"), values = c(21, 19)) +
+  xlab("Word") + ylab("Reading Time (msec)") +
+  theme_bw()
+```
+## A figure 1 equivalent of a table
+```{r}
+kable(rgn_rt_raw)
+```
+
